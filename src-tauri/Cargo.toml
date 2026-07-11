@@ -1,6 +1,6 @@
 [package]
 name = "usage-widget-for-claude"
-version = "0.1.0"
+version = "0.1.1"
 description = "Tiny unofficial desktop widget showing your Claude plan usage limits"
 authors = ["Varintha"]
 license = "MIT"

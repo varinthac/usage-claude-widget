@@ -115,6 +115,18 @@ pub async fn get_usage() -> Result<UsageSnapshot, UsageError> {
     if status.as_u16() == 401 || status.as_u16() == 403 {
         return Err(UsageError::new("unauthorized", "Token was rejected by Anthropic."));
     }
+    if status.as_u16() == 429 {
+        let retry_after = resp
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<u64>().ok());
+        let message = match retry_after {
+            Some(secs) => format!("Anthropic is rate-limiting requests. Retrying in about {secs}s."),
+            None => "Anthropic is rate-limiting requests right now.".to_string(),
+        };
+        return Err(UsageError::new("rate-limited", message));
+    }
     if !status.is_success() {
         return Err(UsageError::new(
             "api",

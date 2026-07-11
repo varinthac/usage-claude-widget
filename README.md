@@ -8,7 +8,7 @@ A tiny, cute Windows 11 desktop widget that shows your **Claude plan usage limit
 
 ## ⬇️ Download
 
-**[Download the installer (v0.1.0, ~1.3 MB)](installer/Usage%20Widget%20for%20Claude_0.1.0_x64-setup.exe)** — Windows 11 x64, no admin rights needed.
+**[Download the installer (v0.1.1, ~1.3 MB)](installer/Usage%20Widget%20for%20Claude_0.1.1_x64-setup.exe)** — Windows 11 x64, no admin rights needed.
 
 Windows SmartScreen will warn you on first run because the installer isn't code-signed — click **More info → Run anyway**, or [build it yourself from source](#building-from-source).
 
