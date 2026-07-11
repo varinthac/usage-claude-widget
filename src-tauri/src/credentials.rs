@@ -36,28 +36,65 @@ fn now_ms() -> i64 {
         .unwrap_or(0)
 }
 
+#[allow(unused_variables, unused_assignments)]
 fn claude_code_token() -> Option<Token> {
-    let path = dirs::home_dir()?.join(".claude").join(".credentials.json");
-    let raw = std::fs::read_to_string(path).ok()?;
-    let parsed: CredFile = serde_json::from_str(&raw).ok()?;
-    let oauth = parsed.claude_ai_oauth?;
-    if oauth.access_token.trim().is_empty() {
+    let Some(path) = dirs::home_dir().map(|h| h.join(".claude").join(".credentials.json")) else {
+        #[cfg(debug_assertions)]
+        eprintln!("[debug] claude_code_token: couldn't resolve home dir");
         return None;
+    };
+
+    // Claude Code can rewrite this file (e.g. token refresh) at almost the same
+    // moment we read it; retry a couple of times before giving up so a transient
+    // read/parse race doesn't get misreported as "not logged in".
+    let mut last_err: Option<String> = None;
+    for attempt in 0..3 {
+        if attempt > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(120));
+        }
+        let raw = match std::fs::read_to_string(&path) {
+            Ok(r) => r,
+            Err(e) => {
+                last_err = Some(format!("read failed: {e}"));
+                continue;
+            }
+        };
+        let parsed: CredFile = match serde_json::from_str(&raw) {
+            Ok(p) => p,
+            Err(e) => {
+                last_err = Some(format!("parse failed: {e}"));
+                continue;
+            }
+        };
+        let Some(oauth) = parsed.claude_ai_oauth else {
+            last_err = Some("missing claudeAiOauth key".to_string());
+            continue;
+        };
+        if oauth.access_token.trim().is_empty() {
+            last_err = Some("accessToken is empty".to_string());
+            continue;
+        }
+        let expired = oauth
+            .expires_at
+            .map(|v| {
+                // Heuristic: values below 10^12 are seconds, otherwise milliseconds.
+                let ms = if v < 1_000_000_000_000 { v * 1000 } else { v };
+                now_ms() > ms
+            })
+            .unwrap_or(false);
+        return Some(Token {
+            value: oauth.access_token,
+            source: "claude-code",
+            expired,
+            subscription: oauth.subscription_type,
+        });
     }
-    let expired = oauth
-        .expires_at
-        .map(|v| {
-            // Heuristic: values below 10^12 are seconds, otherwise milliseconds.
-            let ms = if v < 1_000_000_000_000 { v * 1000 } else { v };
-            now_ms() > ms
-        })
-        .unwrap_or(false);
-    Some(Token {
-        value: oauth.access_token,
-        source: "claude-code",
-        expired,
-        subscription: oauth.subscription_type,
-    })
+
+    #[cfg(debug_assertions)]
+    if let Some(e) = last_err {
+        eprintln!("[debug] claude_code_token: giving up — {e}");
+    }
+    None
 }
 
 fn keyring_entry() -> Result<keyring::Entry, keyring::Error> {

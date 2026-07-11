@@ -112,9 +112,14 @@ footer { padding-top: 6px; color: var(--dim); font-size: 10px; display: flex; ju
 #view-error { justify-content: center; gap: 10px; text-align: center; }
 #error-msg { color: var(--dim); line-height: 1.5; }
 
+#view-onboarding { overflow-y: auto; }
+#view-onboarding::-webkit-scrollbar { width: 4px; }
+#view-onboarding::-webkit-scrollbar-thumb { background: var(--track); border-radius: 2px; }
+
 .onboard-title { font-weight: 600; font-size: 13px; margin-bottom: 6px; }
 .hint { color: var(--dim); line-height: 1.45; margin-bottom: 5px; }
 .hint b { color: var(--text); }
+.hint code { background: var(--bg-deep); border-radius: 4px; padding: 0 3px; font-size: 9px; word-break: break-all; }
 .dim { color: var(--dim); font-size: 10px; }
 
 .row { display: flex; gap: 6px; justify-content: center; margin: 4px 0; }

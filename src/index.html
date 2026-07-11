@@ -100,14 +100,15 @@
 
     <main id="view-onboarding" hidden>
       <p class="onboard-title">Almost there!</p>
-      <p class="hint">No Claude Code login found on this machine. Either:</p>
-      <p class="hint">1&#41; Install &amp; log in to <b>Claude Code</b>, then hit retry &mdash; zero config.</p>
+      <p class="hint">No Claude Code login found. Note: signing into claude.ai in a browser doesn't count &mdash; this needs <b>Claude Code</b> (CLI or desktop) specifically.</p>
+      <p class="hint">1&#41; Install &amp; log in to Claude Code, then hit retry &mdash; zero config.</p>
       <div class="row"><button id="btn-onboard-retry" class="primary">I logged in &mdash; retry</button></div>
       <p class="hint">2&#41; Or paste an OAuth access token (stored safely in Windows Credential Manager):</p>
       <div class="row">
         <input id="token-input" type="password" placeholder="sk-ant-oat&hellip;" autocomplete="off" spellcheck="false" />
         <button id="btn-save-token" class="primary">Save</button>
       </div>
+      <p class="hint dim">Find it in <code>%USERPROFILE%\.claude\.credentials.json</code> &rarr; <code>claudeAiOauth.accessToken</code>.</p>
       <p class="hint dim" id="onboard-status"></p>
     </main>
 
