@@ -1,0 +1,13 @@
+# Dependencies / build output
+node_modules/
+src-tauri/target/
+src-tauri/gen/schemas/
+dist/
+
+# Local scratch & anything that could hold secrets — never commit
+*.local
+.env
+.env.*
+scratch/
+*.credentials.json
+*token*.txt

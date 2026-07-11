@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Usage Widget for Claude</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="widget">
+    <header data-tauri-drag-region>
+      <div id="mascot" data-mood="happy">
+        <!-- Kani the crab — original artwork, 4 moods -->
+        <svg viewBox="0 0 80 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <!-- claws -->
+          <circle cx="13" cy="26" r="8" fill="#c96442"/>
+          <path d="M8 20 L13 26 L5 25 Z" fill="#262624"/>
+          <circle cx="67" cy="26" r="8" fill="#c96442"/>
+          <path d="M72 20 L67 26 L75 25 Z" fill="#262624"/>
+          <!-- legs -->
+          <g stroke="#c96442" stroke-width="2.5" stroke-linecap="round" fill="none">
+            <path d="M22 44 q-6 3 -8 8"/>
+            <path d="M25 49 q-4 4 -4 8"/>
+            <path d="M58 44 q6 3 8 8"/>
+            <path d="M55 49 q4 4 4 8"/>
+          </g>
+          <!-- body -->
+          <ellipse cx="40" cy="38" rx="21" ry="17" fill="#d97757"/>
+          <path d="M23 32 q17 -12 34 0" stroke="#e08b6d" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.6"/>
+          <!-- blush -->
+          <ellipse cx="27" cy="42" rx="3.5" ry="2" fill="#eda78e" opacity="0.9"/>
+          <ellipse cx="53" cy="42" rx="3.5" ry="2" fill="#eda78e" opacity="0.9"/>
+
+          <!-- mood: happy -->
+          <g class="mood mood-happy">
+            <circle cx="33" cy="34" r="5.5" fill="#fff"/>
+            <circle cx="47" cy="34" r="5.5" fill="#fff"/>
+            <g class="pupil"><circle cx="33.5" cy="35" r="2.8" fill="#2a2a28"/><circle cx="34.5" cy="34" r="0.9" fill="#fff"/></g>
+            <g class="pupil"><circle cx="47.5" cy="35" r="2.8" fill="#2a2a28"/><circle cx="48.5" cy="34" r="0.9" fill="#fff"/></g>
+            <path d="M35 45 Q40 49.5 45 45" stroke="#2a2a28" stroke-width="2" fill="none" stroke-linecap="round"/>
+          </g>
+
+          <!-- mood: worried -->
+          <g class="mood mood-worried">
+            <circle cx="33" cy="34" r="5.5" fill="#fff"/>
+            <circle cx="47" cy="34" r="5.5" fill="#fff"/>
+            <g class="pupil"><circle cx="33" cy="35.5" r="2.4" fill="#2a2a28"/></g>
+            <g class="pupil"><circle cx="47" cy="35.5" r="2.4" fill="#2a2a28"/></g>
+            <path d="M29 26 l7 2" stroke="#2a2a28" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M51 26 l-7 2" stroke="#2a2a28" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M35 46 q2.5 -2.5 5 0 q2.5 2.5 5 0" stroke="#2a2a28" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+          </g>
+
+          <!-- mood: panic -->
+          <g class="mood mood-panic">
+            <circle cx="33" cy="34" r="6.2" fill="#fff"/>
+            <circle cx="47" cy="34" r="6.2" fill="#fff"/>
+            <circle cx="33" cy="34" r="1.7" fill="#2a2a28"/>
+            <circle cx="47" cy="34" r="1.7" fill="#2a2a28"/>
+            <path d="M30 25 l6 1.5" stroke="#2a2a28" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M50 25 l-6 1.5" stroke="#2a2a28" stroke-width="1.8" stroke-linecap="round"/>
+            <ellipse cx="40" cy="47" rx="4" ry="4.6" fill="#2a2a28"/>
+            <ellipse cx="40" cy="49" rx="2.4" ry="2" fill="#e0705c"/>
+            <path class="sweat" d="M62 16 q3 4.5 0 7 q-3 -2.5 0 -7" fill="#8fc1ea"/>
+          </g>
+
+          <!-- mood: sleepy -->
+          <g class="mood mood-sleepy">
+            <path d="M28 34 q5 4 10 0" stroke="#2a2a28" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <path d="M42 34 q5 4 10 0" stroke="#2a2a28" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <ellipse cx="40" cy="46" rx="2.2" ry="2.6" fill="#2a2a28"/>
+            <text x="60" y="16" font-size="9" fill="#8a8a86" font-family="sans-serif">z</text>
+            <text x="67" y="10" font-size="7" fill="#6f6f6b" font-family="sans-serif">z</text>
+          </g>
+        </svg>
+      </div>
+      <div class="title" data-tauri-drag-region>
+        <span class="app-name" data-tauri-drag-region>Usage</span>
+        <span class="plan-badge" id="plan" hidden></span>
+      </div>
+      <div class="actions">
+        <button id="btn-refresh" title="Refresh now">&#x21bb;</button>
+        <button id="btn-settings" title="Settings">&#x2699;</button>
+        <button id="btn-hide" title="Hide to tray">&#x2715;</button>
+      </div>
+    </header>
+
+    <main id="view-usage">
+      <div id="bars"></div>
+      <footer><span id="updated">loading&hellip;</span></footer>
+    </main>
+
+    <main id="view-error" hidden>
+      <p id="error-msg"></p>
+      <div class="row">
+        <button id="btn-retry" class="primary">Retry</button>
+        <button id="btn-error-token">Use a token&hellip;</button>
+      </div>
+    </main>
+
+    <main id="view-onboarding" hidden>
+      <p class="onboard-title">Almost there!</p>
+      <p class="hint">No Claude Code login found on this machine. Either:</p>
+      <p class="hint">1&#41; Install &amp; log in to <b>Claude Code</b>, then hit retry &mdash; zero config.</p>
+      <div class="row"><button id="btn-onboard-retry" class="primary">I logged in &mdash; retry</button></div>
+      <p class="hint">2&#41; Or paste an OAuth access token (stored safely in Windows Credential Manager):</p>
+      <div class="row">
+        <input id="token-input" type="password" placeholder="sk-ant-oat&hellip;" autocomplete="off" spellcheck="false" />
+        <button id="btn-save-token" class="primary">Save</button>
+      </div>
+      <p class="hint dim" id="onboard-status"></p>
+    </main>
+
+    <main id="view-settings" hidden>
+      <p class="onboard-title">Settings</p>
+      <label class="setting-row">Refresh every
+        <select id="sel-interval">
+          <option value="30000">30 s</option>
+          <option value="60000" selected>1 min</option>
+          <option value="120000">2 min</option>
+          <option value="300000">5 min</option>
+          <option value="600000">10 min</option>
+        </select>
+      </label>
+      <label class="setting-row"><input type="checkbox" id="chk-aot" /> Always on top</label>
+      <label class="setting-row"><input type="checkbox" id="chk-autostart" /> Start with Windows</label>
+      <div class="setting-row" id="token-manage">
+        <span id="token-source" class="dim"></span>
+        <button id="btn-clear-token" hidden>Clear saved token</button>
+      </div>
+      <div class="row"><button id="btn-back" class="primary">Done</button></div>
+    </main>
+  </div>
+
+  <script src="main.js" defer></script>
+</body>
+</html>

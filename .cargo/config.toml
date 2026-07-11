@@ -1,0 +1,6 @@
+# Project-scoped workaround: this network blocks CRL/OCSP lookups, which makes
+# schannel fail with CRYPT_E_NO_REVOCATION_CHECK when cargo talks to crates.io.
+# Certificate validation itself still happens — only the revocation lookup is skipped.
+# User-approved for this project only (2026-07-11).
+[http]
+check-revoke = false
