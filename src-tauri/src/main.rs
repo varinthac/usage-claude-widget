@@ -18,20 +18,77 @@ struct TrayState {
     autostart_item: CheckMenuItem<Wry>,
 }
 
+/// Grabs an exclusive OS-level file handle that no other process can also
+/// open, so only one copy of the widget ever polls Anthropic's API at a
+/// time. This uses plain file locking rather than a named mutex/pipe:
+/// locking is a filesystem primitive rather than one scoped to a Windows
+/// session/Object Manager namespace, so it works even in environments
+/// where session-scoped IPC doesn't reach across processes cleanly. The
+/// returned handle must be kept alive for the app's lifetime — the OS
+/// releases the lock automatically when it closes, including on a crash.
+#[allow(unused_variables)]
+fn try_acquire_single_instance_lock() -> Option<std::fs::File> {
+    use std::os::windows::fs::OpenOptionsExt;
+    let Some(base) = dirs::data_local_dir() else {
+        #[cfg(debug_assertions)]
+        eprintln!("[debug] single-instance: dirs::data_local_dir() returned None");
+        return None;
+    };
+    let path = base.join("com.varintha.usagewidget").join(".instance.lock");
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    match std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .share_mode(0) // exclusive: no other process may open this file while we hold it
+        .open(&path)
+    {
+        Ok(f) => Some(f),
+        Err(e) => {
+            #[cfg(debug_assertions)]
+            eprintln!("[debug] single-instance: lock open failed at {}: {e:?}", path.display());
+            let _ = (&path, &e);
+            None
+        }
+    }
+}
+
+/// Best-effort: bring an already-running instance's window forward. Uses
+/// the window title directly rather than any custom IPC, since simple
+/// Win32 window enumeration is not affected by the same namespace issue
+/// that ruled out a mutex/pipe-based single-instance check here.
+fn focus_existing_instance() {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        FindWindowW, SetForegroundWindow, ShowWindow, SW_RESTORE,
+    };
+    let title: Vec<u16> = "Usage Widget for Claude\0".encode_utf16().collect();
+    unsafe {
+        let hwnd = FindWindowW(std::ptr::null(), title.as_ptr());
+        if !hwnd.is_null() {
+            ShowWindow(hwnd, SW_RESTORE);
+            SetForegroundWindow(hwnd);
+        }
+    }
+}
+
 fn toggle_window(app: &AppHandle) {
     if let Some(win) = app.get_webview_window("main") {
         if win.is_visible().unwrap_or(false) {
             let _ = win.hide();
+            let _ = app.emit("window-hidden", ());
         } else {
             let _ = win.show();
             let _ = win.set_focus();
+            let _ = app.emit("window-shown", ());
         }
     }
 }
 
 #[tauri::command]
-fn hide_window(window: tauri::WebviewWindow) {
+fn hide_window(app: AppHandle, window: tauri::WebviewWindow) {
     let _ = window.hide();
+    let _ = app.emit("window-hidden", ());
 }
 
 #[tauri::command]
@@ -152,6 +209,19 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 }
 
 fn main() {
+    // If another copy of the widget is already running, hand off to it
+    // (focus its window) and exit immediately, rather than also polling
+    // Anthropic's API independently. Must happen before any Tauri/window
+    // setup — an accidental double-launch (e.g. autostart racing a manual
+    // launch) would otherwise silently double every request.
+    let _instance_lock = match try_acquire_single_instance_lock() {
+        Some(lock) => lock,
+        None => {
+            focus_existing_instance();
+            return;
+        }
+    };
+
     tauri::Builder::default()
         .plugin(
             tauri_plugin_window_state::Builder::default()
@@ -181,6 +251,7 @@ fn main() {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = window.hide();
+                let _ = window.app_handle().emit("window-hidden", ());
             }
         })
         .run(tauri::generate_context!())

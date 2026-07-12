@@ -8,16 +8,18 @@ const $ = (id) => document.getElementById(id);
 const views = ["usage", "error", "onboarding", "settings"];
 
 const MAX_BACKOFF_MS = 10 * 60 * 1000;
+const DEFAULT_INTERVAL_MS = 300000; // 5 min — usage % doesn't need second-by-second polling
 
-let intervalMs = clampInterval(parseInt(localStorage.getItem("intervalMs") || "60000", 10));
+let intervalMs = clampInterval(parseInt(localStorage.getItem("intervalMs") || String(DEFAULT_INTERVAL_MS), 10));
 let backoffMs = null;
 let pollTimer = null;
 let snapshot = null;
 let fetchedAt = null;
 let settingsOpen = false;
+let windowVisible = true;
 
 function clampInterval(ms) {
-  return Number.isFinite(ms) ? Math.min(Math.max(ms, 30000), 600000) : 60000;
+  return Number.isFinite(ms) ? Math.min(Math.max(ms, 30000), 600000) : DEFAULT_INTERVAL_MS;
 }
 
 function showView(name) {
@@ -121,8 +123,13 @@ function renderMeta() {
 
 // ---------- fetching ----------
 
+// While hidden in the tray, nobody can see the data, so there's no point
+// polling Anthropic on a timer — that's pure wasted requests against the
+// rate limit. Just remember the delay and pick the loop back up on show.
 function schedule(ms) {
   clearTimeout(pollTimer);
+  pollTimer = null;
+  if (!windowVisible) return;
   pollTimer = setTimeout(fetchUsage, ms);
 }
 
@@ -142,6 +149,19 @@ async function fetchUsage() {
   } finally {
     btn.classList.remove("spinning");
   }
+}
+
+function onWindowShown() {
+  windowVisible = true;
+  const stale = !fetchedAt || Date.now() - fetchedAt >= intervalMs;
+  if (stale) fetchUsage();
+  else schedule(intervalMs - (Date.now() - fetchedAt));
+}
+
+function onWindowHidden() {
+  windowVisible = false;
+  clearTimeout(pollTimer);
+  pollTimer = null;
 }
 
 function handleError(err) {
@@ -241,6 +261,8 @@ $("chk-autostart").addEventListener("change", (e) => {
 });
 
 listen("tray-refresh", fetchUsage);
+listen("window-shown", onWindowShown);
+listen("window-hidden", onWindowHidden);
 listen("aot-changed", (ev) => {
   localStorage.setItem("aot", ev.payload ? "1" : "0");
   $("chk-aot").checked = !!ev.payload;
