@@ -152,7 +152,7 @@ function handleError(err) {
     return;
   }
   const messages = {
-    "token-expired": "Your Claude Code token has expired.\nOpen Claude Code once to refresh it, then retry.",
+    "token-expired": "Couldn’t renew your Claude Code login automatically.\nOpen Claude Code, sign in once, then retry.",
     unauthorized: "The token was rejected.\nLog in to Claude Code again, or paste a fresh token.",
     network: "Can’t reach Anthropic right now.\nWill keep retrying in the background.",
     "rate-limited": (err?.message || "Anthropic is rate-limiting requests right now.") + "\nThis is temporary — the widget will keep retrying automatically.",

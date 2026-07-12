@@ -84,15 +84,40 @@ fn parse_limits(body: &Value) -> Vec<UsageLimit> {
 
 #[tauri::command]
 pub async fn get_usage() -> Result<UsageSnapshot, UsageError> {
-    let token = crate::credentials::discover()
+    let mut token = crate::credentials::discover()
         .ok_or_else(|| UsageError::new("no-credentials", "No Claude credentials found."))?;
+
     if token.expired {
-        return Err(UsageError::new(
-            "token-expired",
-            "The Claude Code token has expired.",
-        ));
+        // Manual tokens are never marked expired, so this is a Claude Code
+        // login: refresh it the same way Claude Code itself would.
+        token = refresh_or_expired_error().await?;
     }
 
+    match fetch_usage(&token).await {
+        // The token can also be revoked server-side before its local expiry
+        // (e.g. a re-login elsewhere rotated it) — try one refresh + retry
+        // before surfacing an auth error.
+        Err(e) if e.code == "unauthorized" && token.source == "claude-code" => {
+            let refreshed = refresh_or_expired_error().await?;
+            fetch_usage(&refreshed).await
+        }
+        result => result,
+    }
+}
+
+async fn refresh_or_expired_error() -> Result<crate::credentials::Token, UsageError> {
+    crate::credentials::refresh_claude_code().await.map_err(|e| {
+        #[cfg(debug_assertions)]
+        eprintln!("[debug] token refresh failed: {e}");
+        let _ = &e;
+        UsageError::new(
+            "token-expired",
+            "Couldn't refresh the Claude Code login. Open Claude Code and sign in again.",
+        )
+    })
+}
+
+async fn fetch_usage(token: &crate::credentials::Token) -> Result<UsageSnapshot, UsageError> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
         .build()
@@ -148,7 +173,7 @@ pub async fn get_usage() -> Result<UsageSnapshot, UsageError> {
     }
 
     Ok(UsageSnapshot {
-        plan: token.subscription,
+        plan: token.subscription.clone(),
         source: token.source.to_string(),
         limits,
     })
