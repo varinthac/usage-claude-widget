@@ -3948,7 +3948,7 @@ dependencies = [
 
 [[package]]
 name = "usage-widget-for-claude"
-version = "0.2.2"
+version = "0.2.6"
 dependencies = [
  "dirs 6.0.0",
  "keyring",

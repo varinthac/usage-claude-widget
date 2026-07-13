@@ -74,10 +74,15 @@ fn focus_existing_instance() {
 
 fn toggle_window(app: &AppHandle) {
     if let Some(win) = app.get_webview_window("main") {
-        if win.is_visible().unwrap_or(false) {
+        // A minimized window is still "visible" per Win32 (it's iconified,
+        // not hidden), so check both — otherwise clicking the tray icon
+        // while minimized would hide it instead of restoring it.
+        let shown = win.is_visible().unwrap_or(false) && !win.is_minimized().unwrap_or(false);
+        if shown {
             let _ = win.hide();
             let _ = app.emit("window-hidden", ());
         } else {
+            let _ = win.unminimize();
             let _ = win.show();
             let _ = win.set_focus();
             let _ = app.emit("window-shown", ());
@@ -89,6 +94,17 @@ fn toggle_window(app: &AppHandle) {
 fn hide_window(app: AppHandle, window: tauri::WebviewWindow) {
     let _ = window.hide();
     let _ = app.emit("window-hidden", ());
+}
+
+#[tauri::command]
+fn minimize_window(window: tauri::WebviewWindow) {
+    // The widget otherwise has no taskbar presence at all (skipTaskbar),
+    // so a plain minimize would just vanish with no way back short of the
+    // tray icon. Show a taskbar icon only for the duration of being
+    // minimized; on_window_event's Focused(true) handler below turns it
+    // back off as soon as the window is restored/focused again.
+    let _ = window.set_skip_taskbar(false);
+    let _ = window.minimize();
 }
 
 #[tauri::command]
@@ -238,6 +254,7 @@ fn main() {
             usage::save_manual_token,
             usage::clear_manual_token,
             hide_window,
+            minimize_window,
             set_always_on_top,
             set_autostart,
             get_settings_state,
@@ -247,12 +264,19 @@ fn main() {
             build_tray(app.handle())?;
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
+        .on_window_event(|window, event| match event {
+            WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 let _ = window.hide();
                 let _ = window.app_handle().emit("window-hidden", ());
             }
+            // Restored via the taskbar icon (click or Alt+Tab), not our own
+            // tray toggle — drop back to no taskbar presence now that it's
+            // no longer minimized.
+            WindowEvent::Focused(true) => {
+                let _ = window.set_skip_taskbar(true);
+            }
+            _ => {}
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

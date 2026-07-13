@@ -220,6 +220,7 @@ function closeSettings() {
 // ---------- wiring ----------
 
 $("btn-hide").addEventListener("click", () => invoke("hide_window"));
+$("btn-minimize").addEventListener("click", () => invoke("minimize_window"));
 $("btn-refresh").addEventListener("click", fetchUsage);
 $("btn-retry").addEventListener("click", fetchUsage);
 $("btn-onboard-retry").addEventListener("click", fetchUsage);
