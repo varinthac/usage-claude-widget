@@ -8,7 +8,7 @@ A tiny, cute Windows 10/11 desktop widget that shows your **Claude plan usage li
 
 ## ⬇️ Download
 
-**[Download the installer (v0.2.2, ~1.3 MB)](installer/Usage%20Widget%20for%20Claude_0.2.2_x64-setup.exe)** — Windows 10 / 11 x64, no admin rights needed. Requires the [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/), which almost every Windows 10/11 machine already has (it ships with Windows 11 and with Edge on Windows 10) — if yours somehow doesn't, grab it from that link first.
+**[Download the installer (v0.2.6, ~1.4 MB)](installer/Usage%20Widget%20for%20Claude_0.2.6_x64-setup.exe)** — Windows 10 / 11 x64, no admin rights needed. Requires the [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/), which almost every Windows 10/11 machine already has (it ships with Windows 11 and with Edge on Windows 10) — if yours somehow doesn't, grab it from that link first.
 
 Windows SmartScreen will warn you on first run because the installer isn't code-signed — click **More info → Run anyway**, or [build it yourself from source](#building-from-source).
 
