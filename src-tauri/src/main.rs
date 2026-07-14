@@ -72,6 +72,29 @@ fn focus_existing_instance() {
     }
 }
 
+/// Hides the window, first clearing always-on-top. On Windows,
+/// ShowWindow(SW_HIDE) can silently no-op on a topmost (WS_EX_TOPMOST)
+/// frameless/transparent window — it just stays stuck on screen — so the
+/// topmost style must be cleared before hiding. The user's actual
+/// preference lives in the tray's checkbox state (`aot_item`), not the
+/// window's live flag, so `show_window` can restore it afterwards.
+fn do_hide_window(win: &tauri::WebviewWindow) {
+    let _ = win.set_always_on_top(false);
+    let _ = win.hide();
+}
+
+/// Shows the window and restores always-on-top if the user had it enabled.
+fn show_window(app: &AppHandle, win: &tauri::WebviewWindow) {
+    let _ = win.unminimize();
+    let _ = win.show();
+    let _ = win.set_focus();
+    if let Some(state) = app.try_state::<TrayState>() {
+        if state.aot_item.is_checked().unwrap_or(false) {
+            let _ = win.set_always_on_top(true);
+        }
+    }
+}
+
 fn toggle_window(app: &AppHandle) {
     if let Some(win) = app.get_webview_window("main") {
         // A minimized window is still "visible" per Win32 (it's iconified,
@@ -79,12 +102,10 @@ fn toggle_window(app: &AppHandle) {
         // while minimized would hide it instead of restoring it.
         let shown = win.is_visible().unwrap_or(false) && !win.is_minimized().unwrap_or(false);
         if shown {
-            let _ = win.hide();
+            do_hide_window(&win);
             let _ = app.emit("window-hidden", ());
         } else {
-            let _ = win.unminimize();
-            let _ = win.show();
-            let _ = win.set_focus();
+            show_window(app, &win);
             let _ = app.emit("window-shown", ());
         }
     }
@@ -92,7 +113,7 @@ fn toggle_window(app: &AppHandle) {
 
 #[tauri::command]
 fn hide_window(app: AppHandle, window: tauri::WebviewWindow) {
-    let _ = window.hide();
+    do_hide_window(&window);
     let _ = app.emit("window-hidden", ());
 }
 
@@ -136,10 +157,14 @@ struct SettingsState {
 
 #[tauri::command]
 fn get_settings_state(app: AppHandle) -> SettingsState {
+    // Read from aot_item rather than the window's live flag: the window's
+    // always-on-top style is transiently cleared while hidden (see
+    // do_hide_window), so it wouldn't reflect the user's actual preference
+    // if settings were somehow queried during that window.
     let always_on_top = app
-        .get_webview_window("main")
-        .and_then(|w| w.is_always_on_top().ok())
-        .unwrap_or(true);
+        .try_state::<TrayState>()
+        .and_then(|s| s.aot_item.is_checked().ok())
+        .unwrap_or(false);
     let autostart = app.autolaunch().is_enabled().unwrap_or(false);
     SettingsState { always_on_top, autostart }
 }
@@ -154,7 +179,10 @@ fn update_tray(app: AppHandle, tooltip: String) {
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show / Hide", true, None::<&str>)?;
     let refresh = MenuItem::with_id(app, "refresh", "Refresh now", true, None::<&str>)?;
-    let aot_item = CheckMenuItem::with_id(app, "aot", "Always on top", true, true, None::<&str>)?;
+    // `checked` must match tauri.conf.json's alwaysOnTop (false) — this is
+    // now the source of truth show_window() reads to decide whether to
+    // restore always-on-top after unhiding the window.
+    let aot_item = CheckMenuItem::with_id(app, "aot", "Always on top", true, false, None::<&str>)?;
     let autostart_enabled = app.autolaunch().is_enabled().unwrap_or(false);
     let autostart_item = CheckMenuItem::with_id(
         app,
@@ -267,6 +295,9 @@ fn main() {
         .on_window_event(|window, event| match event {
             WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
+                // See do_hide_window: must clear always-on-top before
+                // hiding, or the window can get stuck on screen.
+                let _ = window.set_always_on_top(false);
                 let _ = window.hide();
                 let _ = window.app_handle().emit("window-hidden", ());
             }

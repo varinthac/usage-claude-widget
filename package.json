@@ -1,7 +1,7 @@
 {
   "name": "usage-widget-for-claude",
   "private": true,
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Tiny unofficial desktop widget showing your Claude plan usage limits",
   "scripts": {
     "tauri": "tauri",
