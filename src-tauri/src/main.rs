@@ -4,6 +4,7 @@
 mod credentials;
 mod usage;
 
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
@@ -11,6 +12,49 @@ use tauri::{
 };
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_window_state::StateFlags;
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, SWP_FRAMECHANGED,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
+};
+
+fn window_hwnd(window: &impl HasWindowHandle) -> Option<windows_sys::Win32::Foundation::HWND> {
+    match window.window_handle().ok()?.as_raw() {
+        RawWindowHandle::Win32(h) => Some(h.hwnd.get() as windows_sys::Win32::Foundation::HWND),
+        _ => None,
+    }
+}
+
+/// Toggles the window's taskbar presence directly via its extended window
+/// style (WS_EX_APPWINDOW/WS_EX_TOOLWINDOW) rather than tao's
+/// `set_skip_taskbar`, which uses `ITaskbarList::AddTab`/`DeleteTab` under
+/// the hood. That COM API is built for grouping MDI sub-window tabs under
+/// an owner's taskbar button, not for granting a standalone, unowned
+/// window its own button — `DeleteTab` reliably removes the button, but
+/// `AddTab` does not reliably bring it back (confirmed against a real
+/// build: hide/show and restyle cycles alone did not restore it either,
+/// matching other reports of this exact limitation). `SWP_FRAMECHANGED`
+/// forces Explorer to re-evaluate the style change immediately.
+fn set_taskbar_visible(window: &impl HasWindowHandle, visible: bool) {
+    let Some(hwnd) = window_hwnd(window) else { return };
+    unsafe {
+        let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        let new_ex = if visible {
+            (ex & !(WS_EX_TOOLWINDOW as isize)) | (WS_EX_APPWINDOW as isize)
+        } else {
+            (ex & !(WS_EX_APPWINDOW as isize)) | (WS_EX_TOOLWINDOW as isize)
+        };
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_ex);
+        SetWindowPos(
+            hwnd,
+            std::ptr::null_mut(),
+            0,
+            0,
+            0,
+            0,
+            SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        );
+    }
+}
 
 struct TrayState {
     tray: TrayIcon<Wry>,
@@ -119,12 +163,12 @@ fn hide_window(app: AppHandle, window: tauri::WebviewWindow) {
 
 #[tauri::command]
 fn minimize_window(window: tauri::WebviewWindow) {
-    // The widget otherwise has no taskbar presence at all (skipTaskbar),
-    // so a plain minimize would just vanish with no way back short of the
-    // tray icon. Show a taskbar icon only for the duration of being
-    // minimized; on_window_event's Focused(true) handler below turns it
-    // back off as soon as the window is restored/focused again.
-    let _ = window.set_skip_taskbar(false);
+    // The widget otherwise has no taskbar presence at all, so a plain
+    // minimize would just vanish with no way back short of the tray icon.
+    // Show a taskbar icon only for the duration of being minimized;
+    // on_window_event's Focused(true) handler below turns it back off as
+    // soon as the window is restored/focused again.
+    set_taskbar_visible(&window, true);
     let _ = window.minimize();
 }
 
@@ -290,6 +334,18 @@ fn main() {
         ])
         .setup(|app| {
             build_tray(app.handle())?;
+            // Hide from the taskbar via our own WS_EX_TOOLWINDOW toggle
+            // (see set_taskbar_visible) rather than tauri.conf.json's
+            // `skipTaskbar`/tao's `set_skip_taskbar`, which uses
+            // ITaskbarList::DeleteTab — reliable for hiding on its own,
+            // but minimize_window's later AddTab-based un-hide did not
+            // work, seemingly because that COM API isn't meant to restore
+            // a standalone window's own taskbar button. Keeping the
+            // hide/show symmetric through one mechanism avoids the two
+            // interfering with each other.
+            if let Some(win) = app.get_webview_window("main") {
+                set_taskbar_visible(&win, false);
+            }
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -305,7 +361,7 @@ fn main() {
             // tray toggle — drop back to no taskbar presence now that it's
             // no longer minimized.
             WindowEvent::Focused(true) => {
-                let _ = window.set_skip_taskbar(true);
+                set_taskbar_visible(window, false);
             }
             _ => {}
         })
