@@ -13,8 +13,9 @@ use tauri::{
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_window_state::StateFlags;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, SWP_FRAMECHANGED,
-    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
+    GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, ShowWindow, GWL_EXSTYLE, HWND_NOTOPMOST,
+    HWND_TOPMOST, SW_HIDE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+    WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
 };
 
 fn window_hwnd(window: &impl HasWindowHandle) -> Option<windows_sys::Win32::Foundation::HWND> {
@@ -52,6 +53,30 @@ fn set_taskbar_visible(window: &impl HasWindowHandle, visible: bool) {
             0,
             0,
             SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        );
+    }
+}
+
+/// Sets always-on-top directly via `SetWindowPos(HWND_TOPMOST/NOTOPMOST)`
+/// rather than tao's `set_always_on_top`. tao's version posts the change
+/// as a closure to the event-loop thread and separately tracks its own
+/// `WindowFlags::ALWAYS_ON_TOP` bit, which can end up applied out of
+/// order relative to other flag changes issued around the same time
+/// (e.g. show/hide/minimize) — observed directly: toggling the checkbox
+/// and checking shortly after sometimes showed the window still not
+/// actually topmost despite the call having returned `Ok`. A direct,
+/// synchronous `SetWindowPos` call has no such queuing to race against.
+fn set_window_topmost(window: &impl HasWindowHandle, on: bool) {
+    let Some(hwnd) = window_hwnd(window) else { return };
+    unsafe {
+        SetWindowPos(
+            hwnd,
+            if on { HWND_TOPMOST } else { HWND_NOTOPMOST },
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
         );
     }
 }
@@ -103,9 +128,7 @@ fn try_acquire_single_instance_lock() -> Option<std::fs::File> {
 /// Win32 window enumeration is not affected by the same namespace issue
 /// that ruled out a mutex/pipe-based single-instance check here.
 fn focus_existing_instance() {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, SetForegroundWindow, ShowWindow, SW_RESTORE,
-    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{FindWindowW, SetForegroundWindow, SW_RESTORE};
     let title: Vec<u16> = "Usage Widget for Claude\0".encode_utf16().collect();
     unsafe {
         let hwnd = FindWindowW(std::ptr::null(), title.as_ptr());
@@ -122,9 +145,18 @@ fn focus_existing_instance() {
 /// topmost style must be cleared before hiding. The user's actual
 /// preference lives in the tray's checkbox state (`aot_item`), not the
 /// window's live flag, so `show_window` can restore it afterwards.
+///
+/// Both steps go through raw Win32 calls (`set_window_topmost`, direct
+/// `ShowWindow`) rather than tao's own `set_always_on_top`/`hide`, which
+/// apply asynchronously and do not guarantee this ordering — see
+/// `set_window_topmost` for why that caused this exact bug intermittently.
 fn do_hide_window(win: &tauri::WebviewWindow) {
-    let _ = win.set_always_on_top(false);
-    let _ = win.hide();
+    set_window_topmost(win, false);
+    if let Some(hwnd) = window_hwnd(win) {
+        unsafe {
+            ShowWindow(hwnd, SW_HIDE);
+        }
+    }
 }
 
 /// Shows the window and restores always-on-top if the user had it enabled.
@@ -134,7 +166,7 @@ fn show_window(app: &AppHandle, win: &tauri::WebviewWindow) {
     let _ = win.set_focus();
     if let Some(state) = app.try_state::<TrayState>() {
         if state.aot_item.is_checked().unwrap_or(false) {
-            let _ = win.set_always_on_top(true);
+            set_window_topmost(win, true);
         }
     }
 }
@@ -175,7 +207,7 @@ fn minimize_window(window: tauri::WebviewWindow) {
 #[tauri::command]
 fn set_always_on_top(app: AppHandle, on: bool) -> Result<(), String> {
     let win = app.get_webview_window("main").ok_or("no main window")?;
-    win.set_always_on_top(on).map_err(|e| e.to_string())?;
+    set_window_topmost(&win, on);
     if let Some(state) = app.try_state::<TrayState>() {
         let _ = state.aot_item.set_checked(on);
     }
@@ -264,7 +296,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                 if let Some(state) = app.try_state::<TrayState>() {
                     let on = state.aot_item.is_checked().unwrap_or(true);
                     if let Some(win) = app.get_webview_window("main") {
-                        let _ = win.set_always_on_top(on);
+                        set_window_topmost(&win, on);
                     }
                     let _ = app.emit("aot-changed", on);
                 }
@@ -351,10 +383,9 @@ fn main() {
         .on_window_event(|window, event| match event {
             WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
-                // See do_hide_window: must clear always-on-top before
-                // hiding, or the window can get stuck on screen.
-                let _ = window.set_always_on_top(false);
-                let _ = window.hide();
+                if let Some(win) = window.app_handle().get_webview_window("main") {
+                    do_hide_window(&win);
+                }
                 let _ = window.app_handle().emit("window-hidden", ());
             }
             // Restored via the taskbar icon (click or Alt+Tab), not our own
