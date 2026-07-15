@@ -1,0 +1,35 @@
+<svg viewBox="0 0 240 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Kani the crab, worried mood">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f2f2c"/>
+      <stop offset="1" stop-color="#1a1a18"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.05" r="0.65">
+      <stop offset="0" stop-color="#e2b33c" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#e2b33c" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="1" y="1" width="238" height="188" rx="28" fill="url(#bg)" stroke="#40403c"/>
+  <rect x="1" y="1" width="238" height="188" rx="28" fill="url(#glow)"/>
+  <g transform="translate(20,20) scale(2.5)">
+    <circle cx="13" cy="26" r="8" fill="#c96442"/>
+    <path d="M8 20 L13 26 L5 25 Z" fill="#262624"/>
+    <circle cx="67" cy="26" r="8" fill="#c96442"/>
+    <path d="M72 20 L67 26 L75 25 Z" fill="#262624"/>
+    <g stroke="#c96442" stroke-width="2.5" stroke-linecap="round" fill="none">
+      <path d="M22 44 q-6 3 -8 8"/><path d="M25 49 q-4 4 -4 8"/>
+      <path d="M58 44 q6 3 8 8"/><path d="M55 49 q4 4 4 8"/>
+    </g>
+    <ellipse cx="40" cy="38" rx="21" ry="17" fill="#d97757"/>
+    <path d="M23 32 q17 -12 34 0" stroke="#e08b6d" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.6"/>
+    <ellipse cx="27" cy="42" rx="3.5" ry="2" fill="#eda78e" opacity="0.9"/>
+    <ellipse cx="53" cy="42" rx="3.5" ry="2" fill="#eda78e" opacity="0.9"/>
+    <circle cx="33" cy="34" r="5.5" fill="#fff"/>
+    <circle cx="47" cy="34" r="5.5" fill="#fff"/>
+    <circle cx="33" cy="35.5" r="2.4" fill="#2a2a28"/>
+    <circle cx="47" cy="35.5" r="2.4" fill="#2a2a28"/>
+    <path d="M29 26 l7 2" stroke="#2a2a28" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M51 26 l-7 2" stroke="#2a2a28" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M35 46 q2.5 -2.5 5 0 q2.5 2.5 5 0" stroke="#2a2a28" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  </g>
+</svg>
